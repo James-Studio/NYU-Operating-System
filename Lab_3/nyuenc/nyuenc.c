@@ -10,33 +10,14 @@ int main(int argc, char **argv) {
   * 
   * 
   */ 
-  
-  /*int fd, byteRd;
-  char *fullString = (char*) malloc(50 * sizeof(char));
-  char rdBuffer[100]; // Not sure how big the size of the data is
-  
-  // concat the strings together
-  // use open(), close() sys calls
-  for (int i = 1; i <= (argc-1); i++) {
-    fd = open(argv[i], O_RDONLY);
-    printf("file: %s\n", argv[i]);
-    while (read(fd, rdBuffer, 49)) {
-      rdBuffer[49] = '\0';
-      printf("string: %s\n", rdBuffer);
-      strcat(fullString, rdBuffer);
-      fullString = (char*) realloc(fullString, 50 * sizeof(char));
-    }
-    close(fd);
-  }*/
-  
+
   // Open file
   int fd;
-  struct stat *sb = (struct stat*) malloc((argc-1)* sizeof(struct stat));
-  char **addrList = (char**) malloc((argc-1) * sizeof(char*));
+  struct stat *sb = (struct stat*) malloc((argc-2)* sizeof(struct stat));
+  char **addrList = (char**) malloc((argc-2) * sizeof(char*));
 
-  for (int f = 0; f < argc-1; f++) {
+  for (int f = 0; f < (argc-2); f++) {
     fd = open(argv[f+1], O_RDONLY);
-    // printf("argv: %s\n", argv[f+1]);
 
     if (fd == -1) {
       fprintf(stderr, "Errors in fd\n");
@@ -58,13 +39,56 @@ int main(int argc, char **argv) {
     close(fd);
   }
 
-  // redirect the output location
-  int new_fd = open(argv[argc-1], O_RDWR | O_CREAT | O_TRUNC);
-  dup2(new_fd, 1);
+  /* -------------------------------------------------------------------------------------------------------------- */
 
   // do not make copy of the string anymore
+  // build encoding algorithm
   
+  int countCons = 0, countEncode = 0;
+  char currentChar;
+  char *encodeStr = (char*) malloc (500 * sizeof(char));
 
+  for (int strCount = 0; strCount < (argc - 2); strCount++) {
+    for (int i = 0; i < (int) strlen(addrList[strCount]); i++) {
+      // Case 1: Change to the new character && No count
+      if (countCons == 0) {
+        currentChar = addrList[strCount][i];
+        countCons++;
+      }
+      // Case 2: Change to the new character && Have count 
+      // Add characters in the encoded string
+      else if (currentChar != addrList[strCount][i]) {
+        // Assign the char and number in the string
+        encodeStr[countEncode] = currentChar;
+        encodeStr[countEncode+1] = countCons;
+        countEncode += 2;
+
+        // Change to the new character
+        currentChar = addrList[strCount][i];
+        countCons = 1;
+      }
+      // Case 3: Remain the previous character
+      else {
+        countCons++;
+      }
+    }
+  }
+
+  // Assign the last character and number to the encoded string
+  encodeStr[countEncode] = currentChar;
+  encodeStr[countEncode+1] = countCons;
+  // Still update the recording value
+  countCons = 0;
+  countEncode += 2;
+
+  // Write data to the STDOUT
+  FILE *encodeFilePtr = fopen(argv[argc-1], "wb");
+
+  // Use countEncode as the size of the string written into the encoded file
+  fwrite(encodeStr, sizeof(char), countEncode, encodeFilePtr);
+  fclose(encodeFilePtr);
+
+  /* ----------------------------------------------------------------------- */
   
 
 }
