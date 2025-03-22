@@ -11,12 +11,13 @@ int main(int argc, char **argv) {
   * 
   */ 
 
+  // Sample Command in Milestone 1: ./nyuenc file.txt file.txt > file2.enc
   // Open file
   int fd;
-  struct stat *sb = (struct stat*) malloc((argc-2)* sizeof(struct stat));
-  char **addrList = (char**) malloc((argc-2) * sizeof(char*));
+  struct stat *sb = (struct stat*) malloc((argc-1)* sizeof(struct stat));
+  char **addrList = (char**) malloc((argc-1) * sizeof(char*));
 
-  for (int f = 0; f < (argc-2); f++) {
+  for (int f = 0; f < (argc-1); f++) {
     fd = open(argv[f+1], O_RDONLY);
 
     if (fd == -1) {
@@ -48,7 +49,7 @@ int main(int argc, char **argv) {
   char currentChar;
   char *encodeStr = (char*) malloc (500 * sizeof(char));
 
-  for (int strCount = 0; strCount < (argc - 2); strCount++) {
+  for (int strCount = 0; strCount < (argc-1); strCount++) {
     for (int i = 0; i < (int) strlen(addrList[strCount]); i++) {
       // Case 1: Change to the new character && No count
       if (countCons == 0) {
@@ -82,13 +83,11 @@ int main(int argc, char **argv) {
   countEncode += 2;
 
   // Write data to the STDOUT
-  FILE *encodeFilePtr = fopen(argv[argc-1], "wb");
-
   // Use countEncode as the size of the string written into the encoded file
-  fwrite(encodeStr, sizeof(char), countEncode, encodeFilePtr);
-  fclose(encodeFilePtr);
+  fwrite(encodeStr, sizeof(char), countEncode, stdout); 
 
   /* ----------------------------------------------------------------------- */
-  
+  // 
+
 
 }
