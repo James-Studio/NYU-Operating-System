@@ -3,8 +3,8 @@
 int main(int argc, char **argv) {
   /*  Milestone 1: read files from one or more
 
-    argv[argc-1]: output file, argv[argc-2]: >
-    argv[1] ~ argv[argc-3] (argc - 3 may equal to 1 -> smallest situation)
+    For this command: ./nyuenc file.txt file.txt > file2.enc (argc == 3)
+    So the number of files equal to (argc - 1)
 
   * Remember: No copying in the data (Slow the program down)
   * 
@@ -13,6 +13,7 @@ int main(int argc, char **argv) {
 
   // Sample Command in Milestone 1: ./nyuenc file.txt file.txt > file2.enc
   // Open file
+  // ** Remember to free allocated memories!
   int fd;
   struct stat *sb = (struct stat*) malloc((argc-1)* sizeof(struct stat));
   char **addrList = (char**) malloc((argc-1) * sizeof(char*));
@@ -85,9 +86,6 @@ int main(int argc, char **argv) {
   // Write data to the STDOUT
   // Use countEncode as the size of the string written into the encoded file
   fwrite(encodeStr, sizeof(char), countEncode, stdout); 
-
-  /* ----------------------------------------------------------------------- */
-  // 
 
 
 }
