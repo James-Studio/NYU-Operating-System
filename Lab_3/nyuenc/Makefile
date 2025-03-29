@@ -2,6 +2,7 @@
 
 CC=gcc
 CFLAGS=-fsigned-char -g -pedantic -std=gnu17 -Wall -Werror -Wextra
+LDFLAGS=-pthread
 
 .PHONY: all
 
