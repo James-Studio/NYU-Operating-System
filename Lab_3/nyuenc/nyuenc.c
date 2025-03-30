@@ -63,6 +63,8 @@ void *encode_string(void *targ) {
     // Assign the last character and number to the encoded string
     encodeStr[countEncode] = currentChar;
     encodeStr[countEncode+1] = countCons;
+    
+
     encodeStr[countEncode+2] = '\0';
     // Still update the recording value
     countCons = 0;
@@ -72,7 +74,7 @@ void *encode_string(void *targ) {
     (newTarg->thrdRQ)[resLoc].chunkid = (newTarg->thrdJQ)[resLoc].chunkid;
     (newTarg->thrdRQ)[resLoc].result = encodeStr;
     //fwrite(encodeStr, sizeof(char), countEncode, stdout);
-    fflush(stdout);
+    //fflush(stdout);
 
     /* ---------------------------------------------------- */
 
@@ -161,9 +163,6 @@ int main(int argc, char **argv) {
 
   // store the results in the resElements (length equals to jobQueueLen)
   resElements *resQueue = (resElements*) malloc(jobQueueLen * sizeof(resElements));
-  /*for (int r = 0; r < jobQueueLen; r++) {
-    resQueue[r].result = (unsigned char*) malloc (10000 * sizeof(unsigned char));
-  }*/
   
 
   // init jobQueueLoc and jobQueue
@@ -239,9 +238,9 @@ int main(int argc, char **argv) {
   // Arrange the result queue here (resQueueLen == jobQueueLen)
   // Assume the resQueue is already stored in the order
   int countResID = 0;
-  unsigned char *ansString = (unsigned char*) malloc((getFileAlloc * 2) * sizeof(unsigned char));
-  
-  char lastChar = '\0';
+  unsigned char *ansString = (unsigned char*) malloc((getFileAlloc * argc * 2) * sizeof(unsigned char));
+
+  unsigned char lastChar = '\0';
   int lastNum = 0;
   
   for (int r = 0; r < jobQueueLen; r++) {
@@ -296,17 +295,16 @@ int main(int argc, char **argv) {
 
   if (lastChar != '\0') {
     ansString[countResID] = lastChar;
+    //printf("lastChar: %c\n", ansString[countResID]);
     ansString[countResID + 1] = lastNum;
+    //printf("lastNum: %d\n", (int) ansString[countResID + 1]);
     countResID += 2;
   }
   
-
   // Write data to the STDOUT
   // Use countEncode as the size of the string written into the encoded file
-  
   fwrite(ansString, sizeof(char), countResID, stdout);
   fflush(stdout);
-
+  free(ansString);
   /* -------------------------------------------------------------------------------------------------------------- */
-
 }
