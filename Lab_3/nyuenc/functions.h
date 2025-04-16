@@ -27,17 +27,21 @@ typedef struct jbEle {
 
 typedef struct resEle {
     int chunkid;
+    int resLen;
     unsigned char *result;
 } resElements;
 
 typedef struct jbQue {
     int startLoc; 
     int endLoc;
+    bool finishProd;
 } jbQueueLoc;
 
 typedef struct thrdArg {
     int fileNum;
     char **dataList;
+    int resCount;
+    int jobCount;
     jbElements *thrdJQ; // jobQueue
     jbQueueLoc *thrdJL; // jobLocs
     resElements *thrdRQ; // resQueue

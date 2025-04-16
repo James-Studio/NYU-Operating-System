@@ -2,30 +2,43 @@
 
 /* Locks */
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t job_not_empty = PTHREAD_COND_INITIALIZER;
+pthread_cond_t res_not_empty = PTHREAD_COND_INITIALIZER;
 
-// Encoding Algorithm for the "Threads"
+
+// Encoding Algorithm for the "Threads" (Consumer)
 void *encode_string(void *targ) {
   // infinite loop (Because thread pool)
   for (;;) {
-    pthread_mutex_lock(&mutex);
-    int countCons = 0, countEncode = 0;
-    char currentChar;
-    unsigned char *encodeStr = (unsigned char*) malloc (10000 * sizeof(unsigned char));
-    
     threadArg *newTarg = (threadArg*) targ; // change the type back
+    
+    pthread_mutex_lock(&mutex);
+    
+    // if the count of the chunk == 0, the program should wait
+    while (((newTarg->thrdJL)->startLoc >= (newTarg->thrdJL)->endLoc) && (newTarg->thrdJL->finishProd == false)) {
+      pthread_cond_wait(&job_not_empty, &mutex);
+    }
 
-    // if the queue is empty now, exit the thread (because the queue will not have new chunks)
-    while ((newTarg->thrdJL)->startLoc > (newTarg->thrdJL)->endLoc) {
+    //
+    while (((newTarg->thrdJL)->startLoc >= (newTarg->thrdJL)->endLoc) && (newTarg->thrdJL->finishProd == true)) {
       pthread_mutex_unlock(&mutex);
       pthread_exit(NULL);
     }
-
+    
     // get chunk ID & file ID
-    int getChunkID = (newTarg->thrdJL)->startLoc;
-    int getFileID = (newTarg->thrdJQ)[getChunkID].fid;
+    int getStart = (newTarg->thrdJL)->startLoc;
+    // get chunk ID & file ID
+    int getFileID = (newTarg->thrdJQ)[getStart].fid;
+    
+    // add one to the start chunk (affect other threads)
+    (newTarg->thrdJL)->startLoc++;
+
+    int countCons = 0, countEncode = 0;
+    char currentChar;
+    unsigned char *encodeStr = (unsigned char*) malloc (10000 * sizeof(unsigned char));
 
     // use chunk size to get the binary data
-    for (int strCount = (newTarg->thrdJQ)[getChunkID].cloc * 4096; strCount < ((newTarg->thrdJQ)[getChunkID].cloc * 4096 + (newTarg->thrdJQ)[getChunkID].csize); strCount++) {
+    for (int strCount = (newTarg->thrdJQ)[getStart].cloc * 4096; strCount < ((newTarg->thrdJQ)[getStart].cloc * 4096 + (newTarg->thrdJQ)[getStart].csize); strCount++) {
       // extract the data
       // Case 1: Change to the new character && No count
       if (countCons == 0) {
@@ -37,10 +50,20 @@ void *encode_string(void *targ) {
       else if (currentChar != (newTarg->dataList[getFileID][strCount])) {
         // Assign the char and number in the string
         encodeStr[countEncode] = currentChar;
+        //printf("encodeStr[countEncode]: %c\n", encodeStr[countEncode]);
         encodeStr[countEncode+1] = countCons;
+        //printf("encodeStr[countEncode+1]: %d\n", (int) encodeStr[countEncode+1]);
         countEncode += 2;
 
         // Change to the new character
+        currentChar = newTarg->dataList[getFileID][strCount];
+        countCons = 1;
+      }
+      // Case Test
+      else if (countCons >= 255) {
+        encodeStr[countEncode] = currentChar;
+        encodeStr[countEncode+1] = countCons;
+        countEncode += 2;
         currentChar = newTarg->dataList[getFileID][strCount];
         countCons = 1;
       }
@@ -50,27 +73,31 @@ void *encode_string(void *targ) {
       }
     }
     
+
     // Assign the last character and number to the encoded string
     encodeStr[countEncode] = currentChar;
     encodeStr[countEncode+1] = countCons;
-    
-    encodeStr[countEncode+2] = '\0';
+    //printf("encodeStr[countEncode]: %c\n", encodeStr[countEncode]);
+    //printf("encodeStr[countEncode+1]: %d\n", countCons);
+    //printf("encodeStr[countEncode+1]: %d\n", encodeStr[countEncode+1]);
+    //encodeStr[countEncode+2] = '\0';
 
     // Still update the recording value
     countCons = 0;
-    countEncode += 3;
-   
-    int resLoc = (newTarg->thrdJL)->startLoc;
+    countEncode += 2;
+    //countEncode += 3;
+
+    //
+    int resLoc = getStart;
+
     (newTarg->thrdRQ)[resLoc].chunkid = (newTarg->thrdJQ)[resLoc].chunkid;
     (newTarg->thrdRQ)[resLoc].result = encodeStr;
+    (newTarg->thrdRQ)[resLoc].resLen = countEncode;
 
+    newTarg->resCount++;
 
-    /* ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
-
-    // add one to the start chunk (affect other threads)
-    (newTarg->thrdJL)->startLoc++;
-    // printf("startLoc: %d\n", (newTarg->thrdJL)->startLoc);
-    // printf("endLoc:: %d\n", (newTarg->thrdJL)->endLoc);
+    // Send the signal back
+    pthread_cond_signal(&res_not_empty); 
     
     // Unlock the mutex
     pthread_mutex_unlock(&mutex);
@@ -78,28 +105,22 @@ void *encode_string(void *targ) {
   pthread_exit(NULL);
 }
 
-
 /* -------------------------------------------------------------------------------------------------------------- */
 
 int main(int argc, char **argv) {
-  /*  Milestone 1: read files from one or more
-
+  /*  
     For this command: 
-    ./nyuenc file.txt file.txt > file2.enc (argc == 3)
+    ./nyuenc file.txt file.txt > file2.enc (argc == 3) -> So the number of files equal to (argc - 1)
     ./nyuenc -j 3 file.txt file.txt > file2.enc (argc == 5) -> need to use argcStart to find the files location in argv
-    So the number of files equal to (argc - 1)
-
-  - Remember: No copying in the data (Slow the program down)
+    
+    ** Remember: No copying in the data (Slow the program down) **
   */ 
-
-  // Sample Command in Milestone 1: ./nyuenc file.txt file.txt > file2.enc
-  // Open file
-  // ** Remember to free allocated memories!
 
   /*
     References: 
     Multithreading: https://www.geeksforgeeks.org/multithreading-in-c/
-    Lecture 2-proc.pdf page 262: The producer-consumer problem with pthread
+    getopt(): https://www.gnu.org/software/libc/manual/html_node/Example-of-Getopt.html
+    OS Lecture 2-proc.pdf page 262: The producer-consumer problem with pthread
   */
 
   // The main thread should divide the input data into fixed-size chunks
@@ -132,115 +153,144 @@ int main(int argc, char **argv) {
   }
   /* ------------------------------------------------------------------------------------------------------------------------------------------------ */
 
+  // allocate memory for the job queue 
+  pthread_t tid[threadNums];
+
+  jbElements* jobQueue = (jbElements*) malloc(200000000 * sizeof(jbElements)); // record the position of the chunk (So no need to copy the data)
+  jbQueueLoc* jobQueueLoc = (jbQueueLoc*) malloc(sizeof(jbQueueLoc));
+
+  // store the results in the resElements (length equals to jobQueueLen)
+  resElements *resQueue = (resElements*) malloc(200000000 * sizeof(resElements));
+
+  // init jobQueue
+  jobQueueLoc->startLoc = 0;
+  jobQueueLoc->endLoc = 0;
+  jobQueueLoc->finishProd = false;
+
+  // init arguments for the thread function
+  threadArg *targ = (threadArg*) malloc (sizeof(threadArg));
+  targ->fileNum = argc-1;
+  targ->dataList = addrList;
+  targ->thrdJQ = jobQueue;
+  targ->thrdJL = jobQueueLoc;
+  targ->thrdRQ = resQueue;
+  targ->resCount = 0;
+  targ->jobCount = 0;
+
+  // call the thread pools
+  for (int t = 0; t < threadNums; t++) {
+    pthread_create(&tid[t], NULL, encode_string, targ);
+  }
+
+  // -------------------------------------------------------------------------------------------------------------------------------------------------
+  
+  int countj = 0;
+  // Map multiple files into the memory
   for (int f = 0, cpStart = argcStart; f < (argc-1) && cpStart < argc; f++, cpStart++) {
     fd = open(argv[cpStart], O_RDONLY);
     
+    // check fd
     if (fd == -1) {
-      fprintf(stderr, "Errors in fd\n");
+      /*fwrite("NO", sizeof(char), 0, stdout);
+      fflush(stdout);*/
+      //fprintf(stderr, "Errors in fd\n");
       return 1;
     }
 
     // get file size
     if (fstat(fd, &sb[f]) == -1) {
-      fprintf(stderr, "Errors in fstat\n");
+      /*fwrite("NO", sizeof(char), 0, stdout);
+      fflush(stdout);*/
+      //fprintf(stderr, "Errors in fstat\n");
       return 1;
     }
 
-    // map file into memory
-    // sb[f].st_size or 4096 (have to make sure)
+    // map files into memory
+    // Use sb[f].st_size to get full size and use 4096 to divide the chunks further
     addrList[f] = mmap(NULL, sb[f].st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     getFileAlloc += sb[f].st_size;
     
-    int remainChunk = (int) (sb[f].st_size % 4096);
-    int nChunks = (int) (sb[f].st_size / 4096) + 1;
+    int remainChunk = ((int) sb[f].st_size) % 4096;
+    
+    // Be aware of nChunks (only add one to the "numChunk" when remainChunk is larger than 1)
+    int nChunks;
+    if (remainChunk > 0) {
+      nChunks = ((int) sb[f].st_size) / 4096 + 1;
+    }
+    else {
+      nChunks = ((int) sb[f].st_size) / 4096;
+    }
     
     jobQueueLen += nChunks;
-    
+    //printf("nChunks: %d\n", nChunks);
+
     locList[f].numChunk = nChunks;
     locList[f].lastChunk = remainChunk;
     
-    if (addrList[f] == MAP_FAILED) {
-      fprintf(stderr, "Errors in mmap\n");
-      return 1;
-    }
-
-    close(fd);
-  }
-  
-  
-  // allocate memory for the job queue 
-  jbElements* jobQueue = (jbElements*) malloc(jobQueueLen * sizeof(jbElements)); // record the position of the chunk (So no need to copy the data)
-  jbQueueLoc* jobQueueLoc = (jbQueueLoc*) malloc(sizeof(jbQueueLoc));
-
-  // store the results in the resElements (length equals to jobQueueLen)
-  resElements *resQueue = (resElements*) malloc(jobQueueLen * sizeof(resElements));
-
-  // init jobQueueLoc and jobQueue
-  // build job queue (insert type jbElements)
-  int countj = 0;
-  for (int f = 0; f < (argc-1); f++) {
+    // insert processed chunks 
     for (int nc = 0; nc < locList[f].numChunk; nc++) {
       jobQueue[countj].chunkid = countj + 1; // the id of chunk in all files (start from 1)
       jobQueue[countj].fid = f;
       jobQueue[countj].cloc = nc; // the id of chunk in one file
       //
-      if (nc == locList[f].numChunk - 1) {
+      if (locList[f].lastChunk > 0 && nc == locList[f].numChunk - 1) {
         jobQueue[countj].csize = locList[f].lastChunk;
       }
       else {
         jobQueue[countj].csize = 4096;
       }
       countj++;
+      jobQueueLoc->endLoc++;
+      targ->jobCount++;
+      pthread_cond_signal(&job_not_empty);
     }
+
+    if (addrList[f] == MAP_FAILED) {
+      /*fwrite("NO", sizeof(char), 0, stdout);
+      fflush(stdout);*/
+      //fprintf(stderr, "Errors in mmap\n");
+      return 1;
+    }
+
+    close(fd);
   }
+  jobQueueLoc->finishProd = true;
+  pthread_cond_signal(&job_not_empty);
 
-  jobQueueLoc->startLoc = 0; // exact location in the array (pop from here)
-  jobQueueLoc->endLoc = jobQueueLen - 1;
-  
-  // check jobQueueLen
-  //printf("jobQueueLen: %d, second: %lld\n", jobQueueLen, getFileAlloc * 2);
-  //exit(0);
-  
-  // validate
-  // validateJobQueue(jobQueueLen, jobQueue, addrList);
 
-  
-  pthread_t tid[threadNums];
-  threadArg *targ = (threadArg*) malloc (sizeof(threadArg));
-  
-  // init arguments for the thread function
-  targ->fileNum = argc-1;
-  targ->dataList = addrList;
-  targ->thrdJQ = jobQueue;
-  targ->thrdJL = jobQueueLoc;
-  targ->thrdRQ = resQueue;
-
-  /* Create Thread Pool */
-  // asssume the number of the thread first
-  for (int t = 0; t < threadNums; t++) {
-    pthread_create(&tid[t], NULL, encode_string, targ);
-  }
-
-  // Wait for all the threads
-  void *ret_val;
-  for (int t = 0; t < threadNums; t++) {
-    printf("here\n");
-    pthread_join(tid[t], &ret_val);
-  }
+  // Result Collection Phase
   
   // arrange the result queue here (resQueueLen == jobQueueLen)
   // assume the resQueue is already stored in the order
   int countResID = 0;
-  unsigned char *ansString = (unsigned char*) malloc((getFileAlloc * argc * 2) * sizeof(unsigned char));
 
-  unsigned char lastChar = '\0';
+  // unsigned char *ansString = (unsigned char*) malloc((getFileAlloc * argc * 2) * sizeof(unsigned char));
+  unsigned char *ansString = (unsigned char*) malloc((2000000000) * sizeof(unsigned char));
+
+  unsigned char lastChar;
   int lastNum = 0;
-  
-  
-  for (int r = 0; r < jobQueueLen; r++) {
+
+  /*for (int t = 0; t < threadNums; t++) {
+    pthread_join(tid[t], NULL);
+  }*/
+
+  int r = 0; // current r (record)
+  for (; r < jobQueueLen; r++) {
+    // if res is larger than the jobQueueLen
+    pthread_mutex_lock(&mutex);
+    while (targ->resCount <= r) {
+      pthread_cond_wait(&res_not_empty, &mutex);
+    }
+    pthread_mutex_unlock(&mutex);
+    
+    
+    // get res number
+    // printf("targ->resCount: %d\n", targ->resCount);
+
     for (int countChar = 0; countChar < 10000; countChar++) {
       // testing code
       /*if ((resQueue[r].result)[countChar] == '\0') {
+          printf("bomb\n");
           break;
       }
       else if (countChar % 2 == 0) {
@@ -253,13 +303,45 @@ int main(int argc, char **argv) {
       }*/
 
       /* ---------------------------------------------------------- */
-      // formal code
-      if (lastChar != '\0' && lastNum != 0 && countChar == 0) {
-        if (lastChar == (resQueue[r].result)[countChar]) {
+      // formal code (arrange all the strings in the resQueue into one complete string)
+      int getResLen = resQueue[r].resLen;
+      //if (lastChar != '\0' && lastNum != 0 && countChar == 0) {
+      if (lastNum != 0 && countChar == 0) {
+        if (lastChar == (resQueue[r].result)[countChar] && (lastNum + ((int) (resQueue[r].result)[countChar + 1])) < 256) {
+          //ansString[countResID] = lastChar;
+          //ansString[countResID + 1] = lastNum + (int) (resQueue[r].result)[countChar + 1];
+          lastNum = lastNum + ((int) (resQueue[r].result)[countChar + 1]);
+          //countResID += 2;
+          //
+          if (getResLen <= 2) {
+            break;
+          }
+          else {
+            ansString[countResID] = lastChar;
+            ansString[countResID + 1] = lastNum;
+            //ansString[countResID + 2] = (resQueue[r].result)[countChar];
+            //ansString[countResID + 3] = (resQueue[r].result)[countChar + 1];
+            countResID += 2;
+            countChar++; // not "countChar += 2"
+          }
+        }
+        else if (lastChar == (resQueue[r].result)[countChar] && (lastNum + ((int) (resQueue[r].result)[countChar + 1])) > 255) {
           ansString[countResID] = lastChar;
-          ansString[countResID + 1] = lastNum + (int) (resQueue[r].result)[countChar + 1];
+          ansString[countResID + 1] = 255;
+          lastNum = lastNum + ((int) (resQueue[r].result)[countChar + 1]) - 255;
           countResID += 2;
-          countChar++; // not "countChar += 2"
+          //
+          if (getResLen <= 2) {
+            break;
+          }
+          else {
+            ansString[countResID] = lastChar;
+            ansString[countResID + 1] = lastNum;
+            //ansString[countResID + 2] = (resQueue[r].result)[countChar];
+            //ansString[countResID + 3] = (resQueue[r].result)[countChar + 1];
+            countResID += 2;
+            countChar++;
+          }
         }
         else {
           ansString[countResID] = lastChar;
@@ -270,7 +352,9 @@ int main(int argc, char **argv) {
           countChar++;
         }
       }
-      else if ((resQueue[r].result)[countChar + 2] == '\0') {
+      
+      //else if ((resQueue[r].result)[countChar + 2] == '\0') {
+      else if (countChar >= (getResLen - 2)) {
         lastChar = (resQueue[r].result)[countChar];
         lastNum = (int) (resQueue[r].result)[countChar + 1];
         break;
@@ -287,13 +371,17 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (lastChar != '\0') {
+  //if (lastChar != '\0') {
+  if (lastNum != 0) {
     ansString[countResID] = lastChar;
-    //printf("lastChar: %c\n", ansString[countResID]);
     ansString[countResID + 1] = lastNum;
-    //printf("lastNum: %d\n", (int) ansString[countResID + 1]);
     countResID += 2;
   }
+
+  // Wait for all the threads
+  /*for (int t = 0; t < threadNums; t++) {
+    pthread_join(tid[t], NULL);
+  }*/
   
   // Write data to the STDOUT
   // Use countEncode as the size of the string written into the encoded file
