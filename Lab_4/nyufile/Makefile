@@ -1,7 +1,7 @@
 # Refer to the Makefile in Lab1
-
 CC=gcc
 CFLAGS=-fsigned-char -g -pedantic -std=gnu17 -Wall -Werror -Wextra
+# LDFLAGS=-lcrypto
 
 .PHONY: all
 

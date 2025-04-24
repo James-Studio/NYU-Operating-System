@@ -2,12 +2,15 @@
 
 int main(int argc, char **argv) {
     int opt; // get arguments in command flags (optarg)
+    char diskname[100];
     char filename[100];
     char sha1[200];
     int mode = -1;
     bool mode_s = false;
 
-
+    // get the name of the disk
+    strcpy(diskname, argv[1]);
+    
     /*
         Usage: ./nyufile disk <options>
                 -i                     Print the file system information.
@@ -47,7 +50,21 @@ int main(int argc, char **argv) {
         }
     }
 
+    // Boot sector is the first 512 bytes of the FS
+    size_t boot_sector_size = 512;
+        
+    int diskd = open(diskname, O_RDWR);
+    
+    BootEntry *boot_sector_info = (BootEntry *) malloc(sizeof(BootEntry));
+    void *map_boot = mmap(NULL, boot_sector_size, PROT_READ | PROT_WRITE, MAP_SHARED, diskd, 0);
+    boot_sector_info = (BootEntry *) map_boot;
+    
     //
+    printf("mode: %d, modes: %d\n", mode, mode_s);
+    
+    print_boot_sector_info(boot_sector_info);
+
+    
 
 
     
