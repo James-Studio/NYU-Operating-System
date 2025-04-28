@@ -107,6 +107,9 @@ int main(int argc, char **argv) {
                     count_entries++;
                     print_dir_info(dir_info, i);
                 }
+                else if ((dir_info[i].DIR_Name)[0] == 0xe5) {
+                    continue;
+                }
                 else {
                     break;
                 }
@@ -119,7 +122,63 @@ int main(int argc, char **argv) {
     }
     else if (mode == 3) {
         // have filename here
+        // Milestone 4: Recover a small file ONLY in the root directory
+        // ./nyufile fat32.disk -r HELLO.TXT
+
+        // print_directory_info
+        int dir_count = ((int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus)) / sizeof(DirEntry);
+
+        DirEntry *dir_entry_info = (DirEntry *) (disk_info + data_area_off);
+
+        DirEntry *dir_info = (DirEntry *) (dir_entry_info + (root_cluster - 2));
         
+        bool find_file = false;
+
+        for (int i = 0; i < dir_count; i++) {
+            if ((dir_info[i].DIR_Name)[0] != 0x00) {
+                if ((dir_info[i].DIR_Name)[0] == 0xe5) {
+                    //
+                    int filename_id = 1;
+                    bool check_res = true;
+
+                    for (int wd = 1; wd < 11; wd++) {
+                        if ((dir_info[i].DIR_Name)[wd] == ' ') {
+                            continue;
+                        }
+
+                        if ((dir_info[i].DIR_Name)[wd] != filename[filename_id]) {
+                            check_res = false;
+                            break;
+                        }
+
+                        filename_id++;
+                        if (filename[filename_id] == '.') {
+                            filename_id++;
+                        }
+                    }
+
+                    // find the file and recover it
+                    if (check_res == true) {
+                        find_file = true;
+                        // change the delete file character back to the original character
+                        (dir_info[i].DIR_Name)[0] = filename[0];
+                        printf("%s: successfully recovered\n", filename);
+                        break;
+                    }
+                }
+                else {
+                    continue;
+                }
+            }
+            else {
+                if (find_file == false) {
+                    printf("%s: file not found\n", filename);
+                }
+                break;
+            }
+        }
+        
+
     }
     else {
         // fix the warning
