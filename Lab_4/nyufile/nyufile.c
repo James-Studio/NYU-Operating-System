@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
     int return_ret = fstat(diskd, &disk_stat);
     char *disk_info = mmap(NULL, disk_stat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, diskd, 0);
     // clus_size: used in "Data Area"
-    //size_t clus_size = (size_t) boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus;
+    // size_t clus_size = (size_t) boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus;
 
     // get the start of the fat entry
     int *fat_entry_start = (int *) (disk_info + fat_off);
@@ -89,41 +89,36 @@ int main(int argc, char **argv) {
         // print_directory_info
         DirEntry *dir_entry_info = (DirEntry *) (disk_info + data_area_off);
         int next_fat_entry = root_cluster;
-        int start_cluster =  dir_entry_info->DIR_FstClusHI << 16 | dir_entry_info->DIR_FstClusLO;
-        printf("start cluster: %d\n", start_cluster);
 
-        // ------------------------------------------------------
-        // new sol
+        int count_entries = 0;
+
         while (next_fat_entry < 0x0ffffff8) {
-
-            printf("next_fat_entry: %d\n", next_fat_entry);
 
             // get the next entry number: mask with 0x0fffffff
             // address method: long get_next_entry = ((FatEntry *) (disk_info + fat_start + fat_sec_size * get_next_entry))->FAT_NextEntryID & 0x0FFFFFFF;
             int dir_count = ((int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus)) / sizeof(DirEntry);
-            printf("dir_count: %d\n", dir_count);
-            for (int i = 0; i < 3; i++) {
+            
+            for (int i = 0; i < dir_count; i++) {
                 // check the data area for this cluster
                 DirEntry *dir_info = (DirEntry *) (dir_entry_info + (next_fat_entry - 2));
                 
                 // make sure the file is not nothing
-                if ((dir_info[i].DIR_Name)[0] != 0x00) {
-                    print_dir_info(dir_info, next_fat_entry, i);
+                if ((dir_info[i].DIR_Name)[0] != 0x00 && (dir_info[i].DIR_Name)[0] != 0xe5) {
+                    count_entries++;
+                    print_dir_info(dir_info, i);
                 }
                 else {
                     break;
                 }
-                
             }
-            
+
             // index method
-            next_fat_entry = fat_entry_start[next_fat_entry] & 0x0fffffff;
-            
-            printf("real_next_fat_entry: %d\n", next_fat_entry);
-        }
-
-        // ------------------------------------------------------
-
+            next_fat_entry = fat_entry_start[next_fat_entry] & 0x0fffffff;            
+        } 
+        printf("Total number of entries = %d\n", count_entries);
+    }
+    else if (mode == 3) {
+        // have filename here
         
     }
     else {
@@ -132,5 +127,5 @@ int main(int argc, char **argv) {
     }
 
     //
-    close(diskd);   
+    close(diskd);
 }

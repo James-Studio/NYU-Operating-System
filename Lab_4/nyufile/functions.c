@@ -15,7 +15,7 @@ void print_boot_sector_info(BootEntry *boot_info) {
     return;
 }
 
-void print_dir_info(DirEntry *dir_info, int next_fat_entry, int dir_id) {
+void print_dir_info(DirEntry *dir_info, int dir_id) {
     /*  
         Filename. Similar to /bin/ls -p, if the entry is a directory, you should append a / indicator.
         File size if the entry is a file (not a directory).
@@ -27,11 +27,13 @@ void print_dir_info(DirEntry *dir_info, int next_fat_entry, int dir_id) {
         Total number of entries = 3
     */
     
-
+    // check whether the file is deleted file
+    int start_cluster =  dir_info[dir_id].DIR_FstClusHI << 16 | dir_info[dir_id].DIR_FstClusLO;
+    
     // Case 1: File, but not Empty
     if (dir_info[dir_id].DIR_FileSize != 0) {
         print_file(dir_info[dir_id].DIR_Name);
-        printf(" (size = %d, starting cluster = %d)\n", dir_info[dir_id].DIR_FileSize, next_fat_entry);
+        printf(" (size = %d, starting cluster = %d)\n", dir_info[dir_id].DIR_FileSize, start_cluster);
     }
     // Case 2: Directory
     else if ((dir_info[dir_id].DIR_Attr & 0x10) > 0) {
@@ -41,7 +43,7 @@ void print_dir_info(DirEntry *dir_info, int next_fat_entry, int dir_id) {
                 printf("%c", (dir_info[dir_id].DIR_Name)[i]);
             }
         }
-        printf("/ (starting cluster = %d)\n", next_fat_entry);
+        printf("/ (starting cluster = %d)\n", start_cluster);
     }
     // Case 3: File, but Empty
     else {

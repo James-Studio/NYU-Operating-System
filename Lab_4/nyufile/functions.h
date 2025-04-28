@@ -85,7 +85,7 @@ typedef struct FatEntry {
 
 
 void print_boot_sector_info(BootEntry* boot_info);
-void print_dir_info(DirEntry* dir_info, int start_cluster, int i);
+void print_dir_info(DirEntry* dir_info, int i);
 void print_file(unsigned char *dir_name);
 
 #endif
