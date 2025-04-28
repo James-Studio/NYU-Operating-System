@@ -51,21 +51,86 @@ int main(int argc, char **argv) {
     }
 
     // Boot sector is the first 512 bytes of the FS
-    size_t boot_sector_size = 512;
-        
+    size_t boot_sector_size = 90; // like the lecture said
+    BootEntry *boot_sector_info;
+            
     int diskd = open(diskname, O_RDWR);
     
-    BootEntry *boot_sector_info = (BootEntry *) malloc(sizeof(BootEntry));
     void *map_boot = mmap(NULL, boot_sector_size, PROT_READ | PROT_WRITE, MAP_SHARED, diskd, 0);
+    
     boot_sector_info = (BootEntry *) map_boot;
     
+    // get the end of reserved area
+    // fat_off (fat_start): the offset of fat table
+    int fat_off = (int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_RsvdSecCnt);
+    size_t fat_size = (size_t) boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_FATSz32 * boot_sector_info->BPB_NumFATs;
+    printf("fat_off: %d\n", fat_off);
+
+    // get the first byte of data area
+    int data_area_off = fat_off + ((int) fat_size); // equals to (DirEntry *)(mapped_address + 0x5000)
+    printf("data_area_off: %d\n", data_area_off);
+    
+    // get the size of the disk
+    struct stat disk_stat;
+    int return_ret = fstat(diskd, &disk_stat);
+    char *disk_info = mmap(NULL, disk_stat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, diskd, 0);
+    // clus_size: used in "Data Area"
+    //size_t clus_size = (size_t) boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus;
+
+    // get the start of the fat entry
+    int *fat_entry_start = (int *) (disk_info + fat_off);
+    int root_cluster = boot_sector_info->BPB_RootClus; // usually 2
+
+    if (mode == 1) {
+        //
+        print_boot_sector_info(boot_sector_info);
+    }
+    else if (mode == 2) {
+        // print_directory_info
+        DirEntry *dir_entry_info = (DirEntry *) (disk_info + data_area_off);
+        int next_fat_entry = root_cluster;
+        int start_cluster =  dir_entry_info->DIR_FstClusHI << 16 | dir_entry_info->DIR_FstClusLO;
+        printf("start cluster: %d\n", start_cluster);
+
+        // ------------------------------------------------------
+        // new sol
+        while (next_fat_entry < 0x0ffffff8) {
+
+            printf("next_fat_entry: %d\n", next_fat_entry);
+
+            // get the next entry number: mask with 0x0fffffff
+            // address method: long get_next_entry = ((FatEntry *) (disk_info + fat_start + fat_sec_size * get_next_entry))->FAT_NextEntryID & 0x0FFFFFFF;
+            int dir_count = ((int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus)) / sizeof(DirEntry);
+            printf("dir_count: %d\n", dir_count);
+            for (int i = 0; i < 3; i++) {
+                // check the data area for this cluster
+                DirEntry *dir_info = (DirEntry *) (dir_entry_info + (next_fat_entry - 2));
+                
+                // make sure the file is not nothing
+                if ((dir_info[i].DIR_Name)[0] != 0x00) {
+                    print_dir_info(dir_info, next_fat_entry, i);
+                }
+                else {
+                    break;
+                }
+                
+            }
+            
+            // index method
+            next_fat_entry = fat_entry_start[next_fat_entry] & 0x0fffffff;
+            
+            printf("real_next_fat_entry: %d\n", next_fat_entry);
+        }
+
+        // ------------------------------------------------------
+
+        
+    }
+    else {
+        // fix the warning
+        printf("mode_s: %d, %d\n", mode_s, return_ret);
+    }
+
     //
-    printf("mode: %d, modes: %d\n", mode, mode_s);
-    
-    print_boot_sector_info(boot_sector_info);
-
-    
-
-
-    
+    close(diskd);   
 }
