@@ -143,9 +143,8 @@ int main(int argc, char **argv) {
         int dir_count = cluster_size / sizeof(DirEntry);
 
         //
-        bool find_file = false;
         int num_contiguous = 0;
-        //int count_ambiguous = 0;
+        int num_ambiguous = 0, get_del_fat = -1, record_del_cluster = -1; 
 
         while (next_fat_entry < 0x0ffffff8) {
             //
@@ -176,34 +175,11 @@ int main(int argc, char **argv) {
                         }
     
                         // find the file and recover it
-                        
                         if (check_res == true) {
-                            find_file = true;
-                            // change the delete file character back to the original character
-                            (dir_info[i].DIR_Name)[0] = filename[0];
-
-                            next_fat_entry = (dir_info[i].DIR_FstClusHI << 16) | dir_info[i].DIR_FstClusLO;
-                            num_contiguous = (dir_info[i].DIR_FileSize / cluster_size) + 1;
-
-                            //printf("next_fat_entry: %d\n", next_fat_entry);
-                            //printf("num_contiguous: %d\n", num_contiguous);
-
-                            if (num_contiguous <= 1) {
-                                fat_entry_start[next_fat_entry] = 0x0ffffff8;
-                                printf("%s: successfully recovered\n", filename);
-                            }
-                            else {
-                                for (int f = 1; f < num_contiguous; f++) {
-                                    //printf("next f: %d\n", next_fat_entry + f);
-                                    //printf("enter here\n");
-                                    fat_entry_start[next_fat_entry + f - 1] = next_fat_entry + f;                            
-                                }
-                                fat_entry_start[next_fat_entry + num_contiguous - 1] = 0x0ffffff8;
-                                printf("%s: successfully recovered\n", filename);
-                                //printf("next_fat_entry: %d\n", next_fat_entry);
-                                //printf("%s: successfully recovered\n", filename);
-                            }
-                            break;
+                            num_ambiguous++;
+                            get_del_fat = next_fat_entry;
+                            record_del_cluster = i;
+                            check_res = false;
                         }
                     }
                     else {
@@ -211,13 +187,46 @@ int main(int argc, char **argv) {
                     }
                 }
                 else {
-                    if (find_file == false) {
-                        printf("%s: file not found\n", filename);
-                    }
                     break;
                 }
             }
+                
             next_fat_entry = fat_entry_start[next_fat_entry];    
+        }
+
+        //
+        if (num_ambiguous == 1) { 
+            // change the delete file character back to the original character
+            char* dir_loc = disk_info + data_area_off + (get_del_fat - 2) * cluster_size;
+            DirEntry *dir_info = (DirEntry *) (dir_loc);
+
+            (dir_info[record_del_cluster].DIR_Name)[0] = filename[0];
+
+            next_fat_entry = (dir_info[record_del_cluster].DIR_FstClusHI << 16) | dir_info[record_del_cluster].DIR_FstClusLO;
+            num_contiguous = (dir_info[record_del_cluster].DIR_FileSize / cluster_size) + 1;
+
+
+            if (num_contiguous <= 1) {
+                fat_entry_start[next_fat_entry] = 0x0ffffff8;
+                printf("%s: successfully recovered\n", filename);
+            }
+            else {
+                for (int f = 1; f < num_contiguous; f++) {
+                    //printf("next f: %d\n", next_fat_entry + f);
+                    //printf("enter here\n");
+                    fat_entry_start[next_fat_entry + f - 1] = next_fat_entry + f;                            
+                }
+                fat_entry_start[next_fat_entry + num_contiguous - 1] = 0x0ffffff8;
+                printf("%s: successfully recovered\n", filename);
+                //printf("next_fat_entry: %d\n", next_fat_entry);
+                //printf("%s: successfully recovered\n", filename);
+            }
+        }
+        else if (num_ambiguous > 1) {
+            printf("%s: multiple candidates found\n", filename);
+        }
+        else {
+            printf("%s: file not found\n", filename);
         }
     }
     else if (mode == 4) {
