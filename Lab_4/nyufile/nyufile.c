@@ -94,27 +94,29 @@ int main(int argc, char **argv) {
     }
     else if (mode == 2) {
         // print_directory_info
-        DirEntry *dir_entry_info = (DirEntry *) (disk_info + data_area_off);
         int next_fat_entry = root_cluster;
 
         int count_entries = 0;
+        int cluster_bytes = (int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus);
+        int dir_count = cluster_bytes / sizeof(DirEntry);
 
-        while (next_fat_entry < 0x0ffffff8) {
+
+        while (next_fat_entry < 0x0ffffff8) {            
+            char* dir_loc = disk_info + data_area_off + (next_fat_entry - 2) * cluster_bytes;
+            // check the data area for this cluster
+            DirEntry *dir_info = (DirEntry *) (dir_loc);
 
             // get the next entry number: mask with 0x0fffffff
             // address method: long get_next_entry = ((FatEntry *) (disk_info + fat_start + fat_sec_size * get_next_entry))->FAT_NextEntryID & 0x0FFFFFFF;
-            int dir_count = ((int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus)) / sizeof(DirEntry);
             
-            for (int i = 0; i < dir_count; i++) {
-                // check the data area for this cluster
-                DirEntry *dir_info = (DirEntry *) (dir_entry_info + (next_fat_entry - 2));
+            for (int d = 0; d < dir_count; d++) {
                 
                 // make sure the file is not nothing
-                if ((dir_info[i].DIR_Name)[0] != 0x00 && (dir_info[i].DIR_Name)[0] != 0xe5) {
+                if ((dir_info[d].DIR_Name)[0] != 0x00 && (dir_info[d].DIR_Name)[0] != 0xe5) {
                     count_entries++;
-                    print_dir_info(dir_info, i);
+                    print_dir_info(dir_info, d);
                 }
-                else if ((dir_info[i].DIR_Name)[0] == 0xe5) {
+                else if ((dir_info[d].DIR_Name)[0] == 0xe5) {
                     continue;
                 }
                 else {
@@ -123,74 +125,175 @@ int main(int argc, char **argv) {
             }
 
             // index method
-            next_fat_entry = fat_entry_start[next_fat_entry] & 0x0fffffff;            
+            //printf("fat_entry_start[next_fat_entry]: %d\n", fat_entry_start[next_fat_entry]);
+            next_fat_entry = fat_entry_start[next_fat_entry];            
         }
         printf("Total number of entries = %d\n", count_entries);
     }
     else if (mode == 3) {
         // have filename here
-        // Milestone 4: Recover a small file ONLY in the root directory
         // ./nyufile fat32.disk -r HELLO.TXT
 
-        // print_directory_info
-        int dir_count = ((int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus)) / sizeof(DirEntry);
-
-        DirEntry *dir_entry_info = (DirEntry *) (disk_info + data_area_off);
-
-        DirEntry *dir_info = (DirEntry *) (dir_entry_info + (root_cluster - 2));
+        //  correct code
         
+        // print_directory_info
+        int next_fat_entry = root_cluster;
+
+        int cluster_size = (int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus);
+        int dir_count = cluster_size / sizeof(DirEntry);
+
+        //
         bool find_file = false;
+        int num_contiguous = 0;
+        //int count_ambiguous = 0;
 
-        for (int i = 0; i < dir_count; i++) {
-            if ((dir_info[i].DIR_Name)[0] != 0x00) {
-                if ((dir_info[i].DIR_Name)[0] == 0xe5) {
-                    //
-                    int filename_id = 1;
-                    bool check_res = true;
-
-                    for (int wd = 1; wd < 11; wd++) {
-                        if ((dir_info[i].DIR_Name)[wd] == ' ') {
-                            continue;
+        while (next_fat_entry < 0x0ffffff8) {
+            //
+            char* dir_loc = disk_info + data_area_off + (next_fat_entry - 2) * cluster_size;
+            DirEntry *dir_info = (DirEntry *) (dir_loc);
+            
+            for (int i = 0; i < dir_count; i++) {
+                if ((dir_info[i].DIR_Name)[0] != 0x00) {
+                    if ((dir_info[i].DIR_Name)[0] == 0xe5) {
+                        //
+                        int filename_id = 1;
+                        bool check_res = true;
+    
+                        for (int wd = 1; wd < 11; wd++) {
+                            if ((dir_info[i].DIR_Name)[wd] == ' ') {
+                                continue;
+                            }
+    
+                            if ((dir_info[i].DIR_Name)[wd] != filename[filename_id]) {
+                                check_res = false;
+                                break;
+                            }
+    
+                            filename_id++;
+                            if (filename[filename_id] == '.') {
+                                filename_id++;
+                            }
                         }
+    
+                        // find the file and recover it
+                        
+                        if (check_res == true) {
+                            find_file = true;
+                            // change the delete file character back to the original character
+                            (dir_info[i].DIR_Name)[0] = filename[0];
 
-                        if ((dir_info[i].DIR_Name)[wd] != filename[filename_id]) {
-                            check_res = false;
+                            next_fat_entry = (dir_info[i].DIR_FstClusHI << 16) | dir_info[i].DIR_FstClusLO;
+                            num_contiguous = (dir_info[i].DIR_FileSize / cluster_size) + 1;
+
+                            //printf("next_fat_entry: %d\n", next_fat_entry);
+                            //printf("num_contiguous: %d\n", num_contiguous);
+
+                            if (num_contiguous <= 1) {
+                                fat_entry_start[next_fat_entry] = 0x0ffffff8;
+                                printf("%s: successfully recovered\n", filename);
+                            }
+                            else {
+                                for (int f = 1; f < num_contiguous; f++) {
+                                    //printf("next f: %d\n", next_fat_entry + f);
+                                    //printf("enter here\n");
+                                    fat_entry_start[next_fat_entry + f - 1] = next_fat_entry + f;                            
+                                }
+                                fat_entry_start[next_fat_entry + num_contiguous - 1] = 0x0ffffff8;
+                                printf("%s: successfully recovered\n", filename);
+                                //printf("next_fat_entry: %d\n", next_fat_entry);
+                                //printf("%s: successfully recovered\n", filename);
+                            }
                             break;
                         }
-
-                        filename_id++;
-                        if (filename[filename_id] == '.') {
-                            filename_id++;
-                        }
                     }
-
-                    // find the file and recover it
-                    if (check_res == true) {
-                        find_file = true;
-                        // change the delete file character back to the original character
-                        (dir_info[i].DIR_Name)[0] = filename[0];
-                        printf("%s: successfully recovered\n", filename);
-                        break;
+                    else {
+                        continue;
                     }
                 }
                 else {
-                    continue;
+                    if (find_file == false) {
+                        printf("%s: file not found\n", filename);
+                    }
+                    break;
                 }
             }
-            else {
-                if (find_file == false) {
-                    printf("%s: file not found\n", filename);
-                }
-                break;
-            }
+            next_fat_entry = fat_entry_start[next_fat_entry];    
         }
     }
     else if (mode == 4) {
-        //
-        int dir_count = ((int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus)) / sizeof(DirEntry);
-        for (int i = 0; i < dir_count; i++) {
-            if (strcmp(filename, ) == 0) {
+        printf("fault 4\n");
+        exit(0);
 
+        int next_fat_entry = root_cluster;
+
+        int cluster_bytes = (int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus);
+        int dir_count = cluster_bytes / sizeof(DirEntry);
+        
+        //
+        bool find_file = false;
+
+        int cluster_size = (int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus); // calculate the cluster size
+        int num_contiguous = 0;
+
+        while (next_fat_entry < 0x0ffffff8) {  
+            char* dir_loc = disk_info + data_area_off + (next_fat_entry - 2) * cluster_bytes;
+  
+            for (int i = 0; i < dir_count; i++) {
+                DirEntry *dir_info = (DirEntry *) (dir_loc);
+
+                if ((dir_info[i].DIR_Name)[0] != 0x00) {
+                    if ((dir_info[i].DIR_Name)[0] == 0xe5) {
+                        //
+                        int filename_id = 1;
+                        bool check_res = true;
+
+                        for (int wd = 1; wd < 11; wd++) {
+                            if ((dir_info[i].DIR_Name)[wd] == ' ') {
+                                continue;
+                            }
+
+                            if ((dir_info[i].DIR_Name)[wd] != filename[filename_id]) {
+                                check_res = false;
+                                break;
+                            }
+
+                            filename_id++;
+                            if (filename[filename_id] == '.') {
+                                filename_id++;
+                            }
+                        }
+                        printf("here\n");
+                        // find the file and recover it
+                        if (check_res == true) {
+                            find_file = true;
+                            // change the delete file character back to the original character
+                            (dir_info[i].DIR_Name)[0] = filename[0];
+
+                            next_fat_entry = (dir_info[i].DIR_FstClusHI << 16) | dir_info[i].DIR_FstClusLO;
+                            num_contiguous = (dir_info[i].DIR_FileSize / cluster_size) + 1;
+                            printf("num_contiguous: %d\n", num_contiguous);
+
+                            for (int f = 1; f < num_contiguous; f++) {
+                                printf("next f: %d\n", next_fat_entry + f);
+                                fat_entry_start[next_fat_entry + f - 1] = next_fat_entry + f;                            
+                            }
+                            fat_entry_start[next_fat_entry + num_contiguous - 1] = 0x0ffffff8;
+
+                            printf("next_fat_entry: %d\n", next_fat_entry);
+                            printf("%s: successfully recovered\n", filename);
+                            break;
+                        }
+                    }
+                    else {
+                        continue;
+                    }
+                }
+                else {
+                    if (find_file == false) {
+                        printf("%s: file not found\n", filename);
+                    }
+                    break;
+                }
             }
         }
     }
