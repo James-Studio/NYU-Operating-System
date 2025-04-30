@@ -8,10 +8,10 @@ void print_boot_sector_info(BootEntry *boot_info) {
             Number of sectors per cluster = 1
             Number of reserved sectors = 32
     */
-    printf("Number of FATs: %d\n", boot_info->BPB_NumFATs);
-    printf("Number of bytes per sector: %d\n", boot_info->BPB_BytsPerSec);
-    printf("Number of sectors per cluster: %d\n", boot_info->BPB_SecPerClus);
-    printf("Number of reserved sectors: %d\n", boot_info->BPB_RsvdSecCnt);
+    printf("Number of FATs = %d\n", boot_info->BPB_NumFATs);
+    printf("Number of bytes per sector = %d\n", boot_info->BPB_BytsPerSec);
+    printf("Number of sectors per cluster = %d\n", boot_info->BPB_SecPerClus);
+    printf("Number of reserved sectors = %d\n", boot_info->BPB_RsvdSecCnt);
     return;
 }
 
@@ -77,4 +77,12 @@ void print_file(unsigned char *dir_name) {
             printf("%c", dir_name[i]);
         }
     } 
+}
+
+void print_flag_info(void) {
+    printf("Usage: ./nyufile disk <options>\n");
+    printf("  -i                     Print the file system information.\n");
+    printf("  -l                     List the root directory.\n");
+    printf("  -r filename [-s sha1]  Recover a contiguous file.\n");
+    printf("  -R filename -s sha1    Recover a possibly non-contiguous file.\n");
 }

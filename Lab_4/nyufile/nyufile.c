@@ -8,6 +8,13 @@ int main(int argc, char **argv) {
     int mode = -1;
     bool mode_s = false;
 
+
+    // deal with some exceptions
+    if (argc == 1 || strcmp(argv[1], "-i") == 0) {
+        print_flag_info();
+        exit(0); // exit normally
+    }
+
     // get the name of the disk
     strcpy(diskname, argv[1]);
     
@@ -64,11 +71,11 @@ int main(int argc, char **argv) {
     // fat_off (fat_start): the offset of fat table
     int fat_off = (int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_RsvdSecCnt);
     size_t fat_size = (size_t) boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_FATSz32 * boot_sector_info->BPB_NumFATs;
-    printf("fat_off: %d\n", fat_off);
+    //printf("fat_off: %d\n", fat_off);
 
     // get the first byte of data area
     int data_area_off = fat_off + ((int) fat_size); // equals to (DirEntry *)(mapped_address + 0x5000)
-    printf("data_area_off: %d\n", data_area_off);
+    //printf("data_area_off: %d\n", data_area_off);
     
     // get the size of the disk
     struct stat disk_stat;
@@ -117,7 +124,7 @@ int main(int argc, char **argv) {
 
             // index method
             next_fat_entry = fat_entry_start[next_fat_entry] & 0x0fffffff;            
-        } 
+        }
         printf("Total number of entries = %d\n", count_entries);
     }
     else if (mode == 3) {
@@ -177,8 +184,15 @@ int main(int argc, char **argv) {
                 break;
             }
         }
-        
+    }
+    else if (mode == 4) {
+        //
+        int dir_count = ((int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_SecPerClus)) / sizeof(DirEntry);
+        for (int i = 0; i < dir_count; i++) {
+            if (strcmp(filename, ) == 0) {
 
+            }
+        }
     }
     else {
         // fix the warning
