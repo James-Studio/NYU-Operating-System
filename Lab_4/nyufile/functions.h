@@ -10,7 +10,9 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <openssl/sha.h>
 
+#define SHA_DIGEST_LENGTH 20
 
 
 // For Boot Sector
@@ -76,12 +78,6 @@ typedef struct DirEntry {
 } DirEntry;
 #pragma pack(pop)
 
-/*#pragma pack(push,1)
-typedef struct FatEntry {
-    int FAT_OtherInfo;
-    long FAT_NextEntryID;
-}FatEntry;
-#pragma pack(pop)*/
 
 void print_flag_info(void);
 void print_boot_sector_info(BootEntry* boot_info);
