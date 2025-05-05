@@ -3,7 +3,8 @@
 
     StackOverflow: 
     1. https://stackoverflow.com/questions/3969047/is-there-a-standard-way-of-representing-an-sha1-hash-as-a-c-string-and-how-do-i
-    
+    2. https://stackoverflow.com/questions/918676/generate-sha-hash-in-c-using-openssl-library
+
     GeeksforGeeks:
     1. https://www.geeksforgeeks.org/left-shift-right-shift-operators-c-cpp/
 */
@@ -18,8 +19,9 @@ int main(int argc, char **argv) {
     int mode = -1;
     bool mode_s = false;
 
+    
     // deal with some exceptions
-    if (argc == 1 || strcmp(argv[1], "-i") == 0) {
+    if (argc < 3 || strcmp(argv[1], "-i") == 0 || (argv[2][0] == '-' && argv[2][1] == '\0')) {
         print_flag_info();
         exit(0); // exit normally
     }
@@ -34,41 +36,58 @@ int main(int argc, char **argv) {
                 -r filename [-s sha1]  Recover a contiguous file.
                 -R filename -s sha1    Recover a possibly non-contiguous file.
     */
-    while ((opt = getopt(argc, argv, "r:R:s:il")) != -1) {
+   while ((opt = getopt(argc, argv, "r:R:s:il")) != -1) {
         switch(opt) {
             case 'i':
+                if (mode > 0) {
+                    print_flag_info();
+                    exit(0); // exit normally
+                }
                 mode = 1;
                 break;
             case 'l':
+                if (mode > 0) {
+                    print_flag_info();
+                    exit(0); // exit normally
+                }
                 mode = 2;
                 break;
             case 'r':
+                if (mode > 0 || optarg == NULL || optarg[0] == '-') {
+                    print_flag_info();
+                    exit(0); // exit normally
+                }
                 mode = 3;
                 strcpy(filename, optarg);
                 break;
             case 'R':
+                if (mode > 0 || optarg == NULL || optarg[0] == '-') {
+                    print_flag_info();
+                    exit(0); // exit normally
+                }
                 mode = 4;
                 strcpy(filename, optarg);
                 break;
             case 's':
+                if (mode_s == true || mode < 3) {
+                    print_flag_info();
+                    exit(0); // exit normally
+                }
                 mode_s = true;
                 strcpy(target_sha_hash, optarg);
                 break;
             case '?':
                 // if error, print the above usage information verbatim and exit
-                for (int i = 0; i < argc; i++) {
-                    printf("%s\n", argv[i]);
-                    if (i < argc - 1) {
-                        printf(" ");
-                    }
-                }
-                exit(1); // exit abnormally
+                print_flag_info();
+                exit(0); // exit normally
         }
     }
-   
     
+    
+
     // Boot sector is the first 512 bytes of the FS
-    size_t boot_sector_size = 512;
+    // In the lab description, it is 0 - 89 Bytes (90 Bytes in total)
+    size_t boot_sector_size = 90;
     BootEntry *boot_sector_info;
     
     /*
@@ -87,17 +106,22 @@ int main(int argc, char **argv) {
     // get the end of reserved area
     // fat_start: the starting byte of fat table
     int fat_start = (int) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_RsvdSecCnt);
-    size_t fat_size = (size_t) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_NumFATs * boot_sector_info->BPB_FATSz32);
+    
+    // size_t fat_size = (size_t) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_NumFATs * boot_sector_info->BPB_FATSz32);
+    size_t fat_all_size = (size_t) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_NumFATs * boot_sector_info->BPB_FATSz32);
+    //size_t fat_single_size = (size_t) (boot_sector_info->BPB_BytsPerSec * boot_sector_info->BPB_FATSz32);
+    //int fat_table_num = boot_sector_info->BPB_NumFATs;
+    
 
     // get the first byte of data area (the start of the data_area)
-    // checked: equals to (DirEntry *)(mapped_address + 0x5000)
-    int data_area_start = fat_start + ((int) fat_size); 
-    
+    int data_area_start = fat_start + ((int) fat_all_size);
+
     // get the size of the disk
     struct stat disk_stat;
     int return_ret = fstat(diskd, &disk_stat);
     char *disk_info = mmap(NULL, disk_stat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, diskd, 0);
-    
+
+
     // clus_size: used in "Data Area"
 
     // get the start of the fat entry
