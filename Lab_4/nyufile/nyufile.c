@@ -210,6 +210,7 @@ int main(int argc, char **argv) {
                                 
                                 
                                 // check whether SHA-1 is the same
+                                // unsigned char *SHA1(const unsigned char *d, size_t n, unsigned char *md);
                                 SHA1(((unsigned char *) (dir_loc + (get_start_clus - 2) * clus_size)), ((size_t) dir_info[i].DIR_FileSize), new_sha_temp);
                                 
                                 /* reference from stack overflow */
@@ -308,11 +309,12 @@ int main(int argc, char **argv) {
     }
     else if (mode == 4) {
         //
+        printf("Redundant return_ret: %d\n", return_ret);
+        printf("Do not build the function in the mode\n");
         exit(0);
-
     }
     else {
-        // fix the warning
+        // print error modes
         fprintf(stderr, "The mode does not exist.\n");
     }
 
